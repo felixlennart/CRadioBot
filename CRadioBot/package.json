@@ -1,0 +1,9 @@
+{
+  "name": "cradio-bot",
+  "version": "0.0.0",
+  "description": "CRadioBot",
+  "main": "app.js",
+  "author": {
+    "name": ""
+  }
+}
