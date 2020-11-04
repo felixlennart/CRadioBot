@@ -11,6 +11,11 @@ const config = require("./config.json");
 let jsoning = require('jsoning');
 let db = new jsoning("database.json");
 let songrequests = "songrequests";
+let hostrequests = "hostrequests";
+
+// moment.js
+const moment = require("moment");
+let dateformat = "YYYY-MM-DD-HH:mm:ss";
 
 
 // classes
@@ -19,6 +24,14 @@ class SongRequest {
         this.discorduser = discorduser;
         this.songname = songname;
         this.songurl = songurl;
+    }
+}
+
+class HostRequest {
+    constructor(discorduser, start, end) {
+        this.discorduser = discorduser;
+        this.start = start;
+        this.end = end;
     }
 }
 
@@ -56,11 +69,11 @@ bot.on("message", async message => {
     const args = message.content.slice(config.prefix.length).trim().split(/ +/g);
     const command = args.shift().toLowerCase();
 
-    if (command === "request") {
+    let guild = message.guild;
+    let member = guild.member(message.author);
+    let nickname = member ? member.displayName : null;
 
-        let guild = message.guild;
-        let member = guild.member(message.author);
-        let nickname = member ? member.displayName : null;
+    if (command === "request") {
         let request = new SongRequest;
         request.discorduser = nickname;
         request.songname = args[0];
@@ -76,6 +89,45 @@ bot.on("message", async message => {
         }
         message.react("🎵");
     }
+
+    if (command === "requesthost") {
+        let existingHostrequests = await getFromDatabase(hostrequests);
+        if (Array.isArray(existingHostrequests) && existingHostrequests.filter(e => e.discorduser === nickname).length > 0) {
+            message.channel.send("You've already sent a host request!");
+        }
+        else {
+            let start = moment(args[0] + ":00", dateformat);
+            let end = moment(args[1] + ":00", dateformat);
+            if (!(start.isValid() && end.isValid())) {
+                message.channel.send("Please use the following command: `" + config.prefix + " requesthost " + dateformat.substring(0, 16) + " " + dateformat.substring(0, 16) + "`");
+            }
+            else if (start.isSameOrAfter(end) || start.isBefore(moment()){
+                message.channel.send("Please check the date arguments");
+            }
+            else {
+                let hostrequest = new HostRequest;
+                hostrequest.discorduser = nickname;
+                hostrequest.start = start;
+                hostrequest.end = end;
+
+                if (!Array.isArray(existingHostrequests)) {
+                    existingHostrequests = [hostrequest];
+                    await putInDatabase(hostrequests, hostrequest);
+                }
+                else {
+                    existingHostrequests.push(hostrequest);
+                    await setValueInDatabase(hostrequests, hostrequest);
+                }
+                message.react("✅");
+            }
+        }
+    }
+
+    //if (message.member.roles.some(role => role.name === config.configrole)) {
+    //    if (command === "start") {
+
+    //    }
+    //}
 });
 
 

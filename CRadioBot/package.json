@@ -9,6 +9,7 @@
   "dependencies": {
     "discord": "^0.8.2",
     "discord.js": "^12.4.1",
-    "jsoning": "^0.8.15"
+    "jsoning": "^0.8.15",
+    "moment": "^2.29.1"
   }
 }
