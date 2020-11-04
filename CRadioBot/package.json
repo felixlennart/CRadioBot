@@ -5,5 +5,10 @@
   "main": "app.js",
   "author": {
     "name": ""
+  },
+  "dependencies": {
+    "discord": "^0.8.2",
+    "discord.js": "^12.4.1",
+    "jsoning": "^0.8.15"
   }
 }
