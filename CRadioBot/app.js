@@ -52,7 +52,40 @@ class HostRequest {
 
     async function setValueInDatabase(key, value) {
         await db.set(key, value);
+}
+
+
+// misc functions
+
+async function sendSongRequests(channel) {
+    let requests = await getFromDatabase(songrequests);
+    let content = "";
+    if (Array.isArray(requests)) {
+        content += "Song requests \n";
+        requests.forEach(e => {
+            content += "User: " + e.discorduser + " Song: " + e.songname + " URL: " + e.songurl + "\n";
+        });
     }
+    else {
+       content = "No song requests available";
+    }
+    channel.send(content);
+}
+
+async function sendHostRequests(channel) {
+    let requests = await getFromDatabase(hostrequests);
+    let content = "";
+    if (Array.isArray(requests)) {
+        content += "Host requests \n";
+        requests.forEach(e => {
+            content += "User: " + e.discorduser + " Start: " + e.start + " End: " + e.end + "\n";
+        });
+    }
+    else {
+        content = "No host requests available";
+    }
+    channel.send(content);
+}
 
 
 
@@ -123,11 +156,16 @@ bot.on("message", async message => {
         }
     }
 
-    //if (message.member.roles.some(role => role.name === config.configrole)) {
-    //    if (command === "start") {
-
-    //    }
-    //}
+    if (message.member.roles.some(role => role.name === config.configrole)) {
+        if (command === "show") {
+            if (args[0] === songrequests) {
+                sendSongRequests(message.channel);
+            }
+            else if (args[0] === hostrequests) {
+                sendHostRequests(message.channel);
+            }
+        }
+    }
 });
 
 
