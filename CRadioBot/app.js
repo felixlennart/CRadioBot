@@ -12,6 +12,8 @@ let jsoning = require('jsoning');
 let db = new jsoning("database.json");
 let songrequests = "songrequests";
 let hostrequests = "hostrequests";
+let approvedHosts = "approvedHosts";
+let approvedHostList = [];
 
 // moment.js
 const moment = require("moment");
@@ -28,8 +30,9 @@ class SongRequest {
 }
 
 class HostRequest {
-    constructor(discorduser, start, end) {
+    constructor(discorduser, discordId, start, end) {
         this.discorduser = discorduser;
+        this.discordId = discordId;
         this.start = start;
         this.end = end;
     }
@@ -87,10 +90,47 @@ async function sendHostRequests(channel) {
     channel.send(content);
 }
 
-
+async function approveHost(message, username) {
+    let found = false;
+    let requests = await getFromDatabase(hostrequests);
+    if (Array.isArray(requests)) {
+        for (e of requests) {
+            if (e.discorduser.toLowerCase() === username.toLowerCase()) {
+                if (!Array.isArray(approvedHostList)) {
+                    var newList = [e];
+                    approvedHostList = newList;
+                    putInDatabase(approvedHosts, newList);
+                }
+                else {
+                    var list = approvedHostList;
+                    list.push(e);
+                    approvedHostList = list;
+                    setValueInDatabase(approvedHosts, list);
+                }
+                found = true;
+            }
+        }
+        if (found) {
+            message.react("✅");
+            let updateList = await getFromDatabase(hostrequests);
+            updateList = updateList.filter(e => e.discorduser !== username);
+            await setValueInDatabase(hostrequests, updateList);
+        }
+        else {
+            message.channel.send("No pending host requests for user " + username);
+        }
+    }
+}
 
 
 // bot behavior
+
+bot.on("ready", async () => {
+    approvedHostList = getFromDatabase(approvedHosts);
+});
+
+
+
 bot.on("message", async message => {
 
     // return when message comes from the bot
@@ -123,6 +163,8 @@ bot.on("message", async message => {
         message.react("🎵");
     }
 
+
+
     if (command === "requesthost") {
         let existingHostrequests = await getFromDatabase(hostrequests);
         if (Array.isArray(existingHostrequests) && existingHostrequests.filter(e => e.discorduser === nickname).length > 0) {
@@ -134,12 +176,13 @@ bot.on("message", async message => {
             if (!(start.isValid() && end.isValid())) {
                 message.channel.send("Please use the following command: `" + config.prefix + " requesthost " + dateformat.substring(0, 16) + " " + dateformat.substring(0, 16) + "`");
             }
-            else if (start.isSameOrAfter(end) || start.isBefore(moment()){
+            else if (start.isSameOrAfter(end) || start.isBefore(moment())){
                 message.channel.send("Please check the date arguments");
             }
             else {
                 let hostrequest = new HostRequest;
                 hostrequest.discorduser = nickname;
+                hostrequest.discordId = message.author;
                 hostrequest.start = start;
                 hostrequest.end = end;
 
@@ -156,13 +199,36 @@ bot.on("message", async message => {
         }
     }
 
-    if (message.member.roles.some(role => role.name === config.configrole)) {
+    if (message.member.roles.cache.find(role => role.name === config.configrole) !== undefined) {
         if (command === "show") {
             if (args[0] === songrequests) {
                 sendSongRequests(message.channel);
             }
             else if (args[0] === hostrequests) {
                 sendHostRequests(message.channel);
+            }
+        }
+        else if (command === "approve") {
+            approveHost(message, nickname);
+        }
+        else if (command === "start") {
+            let currentHost;
+            let currentSession;
+            if (approvedHostList.length > 0) {
+                let l = [];
+                approvedHostList.forEach(e => l.push(e.start));
+                l.sort(function (a, b) { return a - b });
+                const criterion = (element) => element.start === l[0];
+                let index = approvedHostList.findIndex(criterion);
+                currentSession = approvedHostList[index];
+                approvedHostList.splice(index, 1);
+                await setValueInDatabase(approvedHosts, approvedHostList);
+                currentHost = currentSession.discordId;
+                sendSongRequests(currentHost);
+                message.react("🎵");
+            }
+            else {
+                message.channel.send("No approved hosts");
             }
         }
     }
