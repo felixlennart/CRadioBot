@@ -63,7 +63,7 @@ class HostRequest {
 async function sendSongRequests(channel) {
     let requests = await getFromDatabase(songrequests);
     let content = "";
-    if (Array.isArray(requests)) {
+    if (Array.isArray(requests) && requests.length > 0) {
         content += "Song requests \n";
         requests.forEach(e => {
             content += "User: " + e.discorduser + " Song: " + e.songname + " URL: " + e.songurl + "\n";
@@ -78,7 +78,7 @@ async function sendSongRequests(channel) {
 async function sendHostRequests(channel) {
     let requests = await getFromDatabase(hostrequests);
     let content = "";
-    if (Array.isArray(requests)) {
+    if (Array.isArray(requests) && requests.length > 0) {
         content += "Host requests \n";
         requests.forEach(e => {
             content += "User: " + e.discorduser + " Start: " + e.start + " End: " + e.end + "\n";
@@ -90,24 +90,31 @@ async function sendHostRequests(channel) {
     channel.send(content);
 }
 
+async function sendApprovedHostRequests(channel) {
+    let requests = await getFromDatabase(approvedHosts);
+    let content = "";
+    if (Array.isArray(requests) && requests.length > 0) {
+        content += "Upcoming radio sessions \n";
+        requests.forEach(e => {
+            content += "User: " + e.discorduser + " Start: " + e.start + " End: " + e.end + "\n";
+        });
+    }
+    else {
+        content = "No upcoming radio sessions. Maybe there are open host requests";
+    }
+    channel.send(content);
+}
+
 async function approveHost(message, username) {
     let found = false;
     let requests = await getFromDatabase(hostrequests);
     if (Array.isArray(requests)) {
         for (e of requests) {
             if (e.discorduser.toLowerCase() === username.toLowerCase()) {
-                if (!Array.isArray(approvedHostList)) {
-                    var newList = [e];
-                    approvedHostList = newList;
-                    putInDatabase(approvedHosts, newList);
-                }
-                else {
-                    var list = approvedHostList;
-                    list.push(e);
-                    approvedHostList = list;
-                    setValueInDatabase(approvedHosts, list);
-                }
+                    approvedHostList.push(e);
+                    setValueInDatabase(approvedHosts, approvedHostList);
                 found = true;
+                break;
             }
         }
         if (found) {
@@ -122,11 +129,38 @@ async function approveHost(message, username) {
     }
 }
 
+async function deleteHost(message, username) {
+    let found = false;
+    let requests = await getFromDatabase(hostrequests);
+    if (Array.isArray(requests)) {
+        for (e of requests) {
+            if (e.discorduser.toLowerCase() === username.toLowerCase()) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            message.react("🗑️");
+            let updateList = await getFromDatabase(hostrequests);
+            updateList = updateList.filter(e => e.discorduser !== username);
+            await setValueInDatabase(hostrequests, updateList);
+        }
+        else {
+            message.channel.send("No pending host requests for user " + username);
+        }
+    }
+}
+
 
 // bot behavior
 
 bot.on("ready", async () => {
-    approvedHostList = getFromDatabase(approvedHosts);
+    let approved = getFromDatabase(approvedHosts);
+    if (Array.isArray(approved)){
+        approvedHostList = approved;
+    } else {
+        setValueInDatabase(approvedHosts, approvedHostList);
+    }
 });
 
 
@@ -163,7 +197,9 @@ bot.on("message", async message => {
         message.react("🎵");
     }
 
-
+    if (command === "help") {
+        message.channel.send("**How to use the CRadioBot**\n------------------------------------\n`cradio request [name of song (no spaces!) [song URL]` \nRequests a song for the next radio session\n\n`cradio requesthost [start time] [end time]`\nSends a radio host request. Please use the following time format: YYYY-MM-DD-HH:mm:ss\n\n`cradio show upcoming`\nShows all upcoming radio sessions\n\n`cradio show songrequests` (authorized users only)\nShows all song requests\n\n`cradio show hostrequests` (authorized users only)\nShows all pending radio host requests\n\n`cradio approve [username]` (authorized users only)\nApproves the host request of a user and adds him to the upcoming session list\n\n`cradio start` (authorized users only)\nStarts the next radio session. The host will be notified and receives all song requests. The song requests will be cleared\n\n`cradio deletehost [username]` (authorized users only)\nDeletes the host request of a user'")
+    }
 
     if (command === "requesthost") {
         let existingHostrequests = await getFromDatabase(hostrequests);
@@ -188,15 +224,19 @@ bot.on("message", async message => {
 
                 if (!Array.isArray(existingHostrequests)) {
                     existingHostrequests = [hostrequest];
-                    await putInDatabase(hostrequests, hostrequest);
+                    await putInDatabase(hostrequests, existingHostrequests);
                 }
                 else {
                     existingHostrequests.push(hostrequest);
-                    await setValueInDatabase(hostrequests, hostrequest);
+                    await setValueInDatabase(hostrequests, existingHostrequests);
                 }
                 message.react("✅");
             }
         }
+    }
+
+    if (command === "show" && args[0] === "upcoming") {
+        sendApprovedHostRequests(message.channel);
     }
 
     if (message.member.roles.cache.find(role => role.name === config.configrole) !== undefined) {
@@ -209,7 +249,7 @@ bot.on("message", async message => {
             }
         }
         else if (command === "approve") {
-            approveHost(message, nickname);
+            if (message.content.substring(config.prefix.length + command.length + 2).length > 0) approveHost(message, message.content.substring(config.prefix.length + command.length + 2));
         }
         else if (command === "start") {
             let currentHost;
@@ -224,13 +264,23 @@ bot.on("message", async message => {
                 approvedHostList.splice(index, 1);
                 await setValueInDatabase(approvedHosts, approvedHostList);
                 currentHost = currentSession.discordId;
-                sendSongRequests(currentHost);
+                bot.users.fetch(currentHost.id).then(usr => {
+                    usr.send("Your radio session has started. Let's start the stream!")
+                    sendSongRequests(usr)
+                });
+                deleteFromDatabase(songrequests);
                 message.react("🎵");
             }
             else {
                 message.channel.send("No approved hosts");
             }
         }
+        else if (command === "deletehost") {
+            if (message.content.substring(config.prefix.length + command.length + 2).length > 0) deleteHost(message, message.content.substring(config.prefix.length + command.length + 2));
+        }
+    }
+    else {
+        message.channel.send("You have no right to execute this command");
     }
 });
 
