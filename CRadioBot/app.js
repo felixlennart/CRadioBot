@@ -1,6 +1,9 @@
 ﻿// discord dependency
 const Discord = require("discord.js");
 
+// cron dependency
+var CronJob = require('cron').CronJob;
+
 // bot instance
 const bot = new Discord.Client();
 
@@ -14,6 +17,10 @@ let songrequests = "songrequests";
 let hostrequests = "hostrequests";
 let approvedHosts = "approvedHosts";
 let approvedHostList = [];
+
+// other vars
+let currentHost;
+let currentSession;
 
 // moment.js
 const moment = require("moment");
@@ -174,6 +181,23 @@ async function deleteShow(message, username) {
     }
 }
 
+async function startShow() {
+    let l = [];
+    approvedHostList.forEach(e => l.push(e.start));
+    l.sort(function (a, b) { return a - b });
+    const criterion = (element) => element.start === l[0];
+    let index = approvedHostList.findIndex(criterion);
+    currentSession = approvedHostList[index];
+    approvedHostList.splice(index, 1);
+    await setValueInDatabase(approvedHosts, approvedHostList);
+    currentHost = currentSession.discordId;
+    bot.users.fetch(currentHost.id).then(usr => {
+        usr.send("Your radio session has started. Let's start the stream!")
+        sendSongRequests(usr)
+    });
+    deleteFromDatabase(songrequests);
+}
+
 // bot behavior
 
 bot.on("ready", async () => {
@@ -276,23 +300,8 @@ bot.on("message", async message => {
             if (message.content.substring(config.prefix.length + command.length + 2).length > 0) approveHost(message, message.content.substring(config.prefix.length + command.length + 2));
         }
         else if (command === "start") {
-            let currentHost;
-            let currentSession;
             if (approvedHostList.length > 0) {
-                let l = [];
-                approvedHostList.forEach(e => l.push(e.start));
-                l.sort(function (a, b) { return a - b });
-                const criterion = (element) => element.start === l[0];
-                let index = approvedHostList.findIndex(criterion);
-                currentSession = approvedHostList[index];
-                approvedHostList.splice(index, 1);
-                await setValueInDatabase(approvedHosts, approvedHostList);
-                currentHost = currentSession.discordId;
-                bot.users.fetch(currentHost.id).then(usr => {
-                    usr.send("Your radio session has started. Let's start the stream!")
-                    sendSongRequests(usr)
-                });
-                deleteFromDatabase(songrequests);
+                startShow();
                 message.react("🎵");
             }
             else {
