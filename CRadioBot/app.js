@@ -19,8 +19,11 @@ let approvedHosts = "approvedHosts";
 let approvedHostList = [];
 
 // other vars
-let currentHost;
-let currentSession;
+let currentHost = null;
+let currentSession = null;
+let currentHostHasRole;
+let server;
+var radioRole;
 
 // moment.js
 const moment = require("moment");
@@ -192,10 +195,25 @@ async function startShow() {
     await setValueInDatabase(approvedHosts, approvedHostList);
     currentHost = currentSession.discordId;
     bot.users.fetch(currentHost.id).then(usr => {
-        usr.send("Your radio session has started. Let's start the stream!")
-        sendSongRequests(usr)
+        usr.send("Your radio session has started. Let's start the stream!");
+        sendSongRequests(usr);
+        let member = server.members.cache.get(usr.id);
+        if (member.roles.cache.find(role => role.name === config.radiorole) == undefined) currentHostHasRole = false;
+        if (!currentHostHasRole) member.roles.add(radioRole);
     });
     deleteFromDatabase(songrequests);
+}
+
+function stopShow() {
+
+    bot.users.fetch(currentHost.id).then(usr => {
+        let member = server.members.cache.get(usr.id);
+        if (!currentHostHasRole) member.roles.remove(radioRole);
+        usr.send("Your radio session has ended. Thanks for hosting!")
+        currentHostHasRole = true;
+     });
+        currentHost = null;
+        currentSession = null;
 }
 
 // bot behavior
@@ -207,6 +225,9 @@ bot.on("ready", async () => {
     } else {
         setValueInDatabase(approvedHosts, approvedHostList);
     }
+    server = await bot.guilds.cache.get(config.serverid);
+    radioRole = server.roles.cache.find(role => role.name === config.radiorole);
+    currentHostHasRole = true;
 });
 
 
@@ -246,7 +267,7 @@ bot.on("message", async message => {
     }
 
     if (command === "help") {
-        message.channel.send("**How to use the CRadioBot**\n------------------------------------\n`cradio request [name of song] [song URL (has to begin with 'http')]` \nRequests a song for the next radio session\n\n`cradio requesthost [start time] [end time]`\nSends a radio host request. Please use the following time format: YYYY-MM-DD-HH:mm:ss\n\n`cradio show upcoming`\nShows all upcoming radio sessions\n\n`cradio show songrequests` (authorized users only)\nShows all song requests\n\n`cradio show hostrequests` (authorized users only)\nShows all pending radio host requests\n\n`cradio approve [username]` (authorized users only)\nApproves the host request of a user and adds him to the upcoming session list\n\n`cradio start` (authorized users only)\nStarts the next radio session. The host will be notified and receives all song requests. The song requests will be cleared\n\n`cradio deletehost [username]` (authorized users only)\nDeletes the host request of a user\n\n`cradio deleteshow [username]` (authorized users only)\nDeletes the show of a user")
+        message.channel.send("**How to use the CRadioBot**\n------------------------------------\n`cradio request [name of song] [song URL (has to begin with 'http')]` \nRequests a song for the next radio session\n\n`cradio requesthost [start time] [end time]`\nSends a radio host request. Please use the following time format: YYYY-MM-DD-HH:mm:ss\n\n`cradio show upcoming`\nShows all upcoming radio sessions\n\n`cradio show songrequests` (authorized users only)\nShows all song requests\n\n`cradio show hostrequests` (authorized users only)\nShows all pending radio host requests\n\n`cradio approve [username]` (authorized users only)\nApproves the host request of a user and adds him to the upcoming session list\n\n`cradio start` (authorized users only)\nStarts the next radio session. The host will be notified, gets the radio host role and receives all song requests. The song requests will be cleared\n\n`cradio deletehost [username]` (authorized users only)\nDeletes the host request of a user\n\n`cradio deleteshow [username]` (authorized users only)\nDeletes the show of a user\n\n`cradio stop` (authorized users only)\nStops the current show and removes the radio host role (only when the user received it for this particular radio session)")
     }
 
     if (command === "requesthost") {
@@ -306,6 +327,14 @@ bot.on("message", async message => {
             }
             else {
                 message.channel.send("No approved hosts");
+            }
+        }
+        else if (command === "stop") {
+            if (currentSession == null && currentHost == null) {
+                message.channel.send("There is no active show");
+            } else {
+                stopShow();
+                message.react("🛑");
             }
         }
         else if (command === "deletehost") {
