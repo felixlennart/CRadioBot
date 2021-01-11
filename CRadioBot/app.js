@@ -322,8 +322,12 @@ bot.on("message", async message => {
         }
         else if (command === "start") {
             if (approvedHostList.length > 0) {
-                startShow();
-                message.react("🎵");
+                if (currentSession != null && currentHost != null) {
+                    message.channel.send("There's already an active radio session!");
+                } else {
+                    startShow();
+                    message.react("🎵");
+                }
             }
             else {
                 message.channel.send("No approved hosts");
