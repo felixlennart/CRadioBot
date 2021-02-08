@@ -266,11 +266,11 @@ bot.on("message", async message => {
         message.react("🎵");
     }
 
-    if (command === "help") {
+    else if (command === "help") {
         message.channel.send("**How to use the CRadioBot**\n------------------------------------\n`cradio request [name of song] [song URL (has to begin with 'http')]` \nRequests a song for the next radio session\n\n`cradio requesthost [start time] [end time]`\nSends a radio host request. Please use the following time format: YYYY-MM-DD-HH:mm\n\n`cradio show upcoming`\nShows all upcoming radio sessions\n\n`cradio show songrequests` (authorized users only)\nShows all song requests\n\n`cradio show hostrequests` (authorized users only)\nShows all pending radio host requests\n\n`cradio approve [username]` (authorized users only)\nApproves the host request of a user and adds him to the upcoming session list\n\n`cradio start` (authorized users only)\nStarts the next radio session. The host will be notified, gets the radio host role and receives all song requests. The song requests will be cleared\n\n`cradio deletehost [username]` (authorized users only)\nDeletes the host request of a user\n\n`cradio deleteshow [username]` (authorized users only)\nDeletes the show of a user\n\n`cradio stop` (authorized users only)\nStops the current show and removes the radio host role (only when the user received it for this particular radio session)")
     }
 
-    if (command === "requesthost") {
+    else if (command === "requesthost") {
         let existingHostrequests = await getFromDatabase(hostrequests);
         if (Array.isArray(existingHostrequests) && existingHostrequests.filter(e => e.discorduser === nickname).length > 0) {
             message.channel.send("You've already sent a host request!");
@@ -304,11 +304,11 @@ bot.on("message", async message => {
         }
     }
 
-    if (command === "show" && args[0] === "upcoming") {
+    else if (command === "show" && args[0] === "upcoming") {
         sendApprovedHostRequests(message.channel);
     }
 
-    if (message.member.roles.cache.find(role => role.name === config.configrole) !== undefined) {
+   else if (message.member.roles.cache.find(role => role.name === config.configrole) !== undefined) {
         if (command === "show") {
             if (args[0] === songrequests) {
                 sendSongRequests(message.channel);
